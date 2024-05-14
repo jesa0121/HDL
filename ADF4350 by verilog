@@ -1,0 +1,100 @@
+module FPGA_PLL_2GHz(CLK,RST,LD,DATA,LE,CE,RLED,GLED1,GLED2,CLKout,pulse);
+input			CLK;		
+input			RST;
+input			LD;
+output		CLKout;						////REFin=25Mhz
+output reg 	DATA;
+output reg 	LE,CE;
+output RLED,GLED1,GLED2;
+
+output reg 	pulse;
+reg 	[1:0]Q;
+reg	[5:0]cnt;
+reg	[3:0]cnt2;
+reg	[31:0]TxR;
+
+initial begin
+	LE<=1'b1;
+end
+
+
+always@(posedge CLK )
+begin
+	Q<=Q+1'b1;
+end
+
+
+always@(posedge CLK )
+begin
+if(pulse==1)begin
+		if (RST==0)begin
+			cnt<=32;
+			cnt2<=0;
+		end
+		else if (cnt2==7) begin
+			cnt2<=cnt2;
+			cnt<=cnt;
+		end
+		else begin
+			cnt<=cnt-1;
+			if (cnt==0) begin
+				cnt<=32;
+				cnt2<=cnt2+1;
+			end
+		end
+end
+end
+
+always@(Q,cnt2)
+begin
+		case(Q)
+			0:pulse<=1'b0;
+			1:pulse<=1'b0;
+			2:pulse<=1'b1;
+			3:pulse<=1'b0;
+			default:pulse<=1'b0;
+		endcase
+
+		case(cnt2)					
+			5:TxR<=32'h00280000;		//R0
+			4:TxR<=32'h00008011;		//R1
+			3:TxR<=32'h00004E42;		//R2
+			2:TxR<=32'h000004B3;		//R3
+			1:TxR<=32'h001C803C;		//R4
+			0:TxR<=32'h00580005;		//R5
+			default:TxR<=32'h00000000;
+
+		endcase
+end
+
+assign	RLED=~CE;
+assign	GLED1=CE;
+assign	GLED2=LD;
+assign	CLKout=Q[1];
+
+
+always@(posedge CLK )
+begin
+if(pulse==1)begin
+		if (RST==0)begin
+			LE<=1'b1;
+			CE<=1'b0;
+		end	
+		else if(cnt2>=6)begin
+			CE<=1'b1;
+		end
+		else if (cnt==0) begin
+			LE<=1'b1;
+			DATA<=1'b0;
+		end
+		else begin
+			DATA<=TxR[cnt-1];
+			LE<=1'b0;
+		end
+end
+end
+
+endmodule
+
+
+
