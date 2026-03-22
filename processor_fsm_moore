@@ -1,0 +1,130 @@
+module processor_fsm_moore(Data,Rst,Clk,F,Buswires,R0,R1,R2,R3,A,G,out_ps,out_ns);
+input 		[7:0]Data;
+input 		Rst,Clk;
+input			[6:0]F;
+output reg	[7:0]Buswires;
+output 		[3:0]out_ps,out_ns;
+reg 			[3:0]Rin,Rout;
+reg			[7:0]Sum;
+wire			[6:0]Funcreg;
+reg			Extern,Ain,Gin,Gout;
+wire			[1:0]I;
+wire			[3:0]X,Y;
+output wire	[7:0]R0,R1,R2,R3,A,G;
+wire 			[5:0]Sel;
+parameter 	[3:0]	IDLE=4'd0,LOAD=4'd1,MOVE=4'd2,
+						ADD_1=4'd3,ADD_2=4'd4,ADD_3=4'd5,
+						SUB_1=4'd6,SUB_2=4'd7,SUB_3=4'd8,
+						SWAP_1=4'd9,SWAP_2=4'd10,SWAP_3=4'd11;  //use R3 be temporary storage
+reg  			[3:0]ps,ns;
+
+	assign FRin=(F!=0);
+	regn functionreg(.R(F),.Rin(FRin),.Clk(Clk),.Q(Funcreg));
+		defparam functionreg.n=7;
+
+	dec2to4 decX(.W(F[3:2]),.En(1'b1),.Y(X));		//the last R
+	dec2to4 decY(.W(F[1:0]),.En(1'b1),.Y(Y));	
+
+	regn reg_0(.R(Buswires),.Rin(Rin[0]),.Clk(Clk),.Q(R0));
+	regn reg_1(.R(Buswires),.Rin(Rin[1]),.Clk(Clk),.Q(R1));
+	regn reg_2(.R(Buswires),.Rin(Rin[2]),.Clk(Clk),.Q(R2));
+	regn reg_3(.R(Buswires),.Rin(Rin[3]),.Clk(Clk),.Q(R3));
+	regn reg_A(.R(Buswires),.Rin(Ain),.Clk(Clk),.Q(A));
+	
+	always@(*)begin
+		if(ps==ADD_1 || ps==ADD_2 || ps==ADD_3)
+			Sum=A+Buswires;
+		else if(ps==SUB_1 || ps==SUB_2 || ps==SUB_3)
+			Sum=A-Buswires;	
+		else
+			;
+	end
+	
+	regn reg_G(.R(Sum),.Rin(Gin),.Clk(Clk),.Q(G));
+	assign Sel={Rout,Gout,Extern};
+	
+	always@(*)begin
+		case(Sel)  //take care about Rout order
+			6'b000100:Buswires=R0;
+			6'b001000:Buswires=R1;
+			6'b010000:Buswires=R2;
+			6'b100000:Buswires=R3;
+			6'b000010:Buswires=G;
+			default:	Buswires=Data;
+		endcase
+	end
+
+	always@(*)begin
+		case(ps)
+			IDLE:ns=	( F[6:4]==3'b001)?LOAD:
+						( F[6:4]==3'b010)?MOVE:
+						( F[6:4]==3'b011)?ADD_1:
+						( F[6:4]==3'b100)?SUB_1:
+						( F[6:4]==3'b101)?SWAP_1:IDLE;
+			LOAD:ns=IDLE;
+			MOVE:ns=IDLE;
+			ADD_1:ns=ADD_2;
+			ADD_2:ns=ADD_3;
+			ADD_3:ns=IDLE;
+			SUB_1:ns=SUB_2;
+			SUB_2:ns=SUB_3;
+			SUB_3:ns=IDLE;
+			SWAP_1:ns=SWAP_2;
+			SWAP_2:ns=SWAP_3;
+			SWAP_3:ns=IDLE;
+		endcase
+	end
+
+always@(*)begin
+		Extern=1'b0;Ain=1'b0;Gin=1'b0;Gout=1'b0;
+		Rin=4'b0;Rout=4'b0;
+		case(ps)
+			IDLE:;
+			LOAD:begin
+					Extern=1'b1;Rin=X;
+					end
+			MOVE:begin
+					Rout=Y;Rin=X;
+					end
+			ADD_1:begin
+						Rout=X;Ain=1'b1;
+						end
+			ADD_2:begin	//ADD
+						Rout=Y;Gin=1'b1;
+					end
+			ADD_3:begin
+						Rin=X;Gout=1'b1;
+					end
+					
+			SUB_1:begin
+						Rout=X;Ain=1'b1;
+						end
+			SUB_2:begin//SUB
+						Rout=Y;Gin=1'b1;
+					end
+			SUB_3:begin
+						Rin=X;Gout=1'b1;
+					end
+			SWAP_1:begin
+						Rout=Y;Rin=4'b1000;
+						end
+			SWAP_2:begin
+						Rout=X;Rin=Y;
+						end
+			SWAP_3:begin
+						Rout=4'b1000;Rin=X;
+						end
+			
+		endcase
+	end
+
+	always@(posedge Clk,posedge Rst)begin
+		if(Rst)
+			ps<=IDLE;
+		else
+			ps<=ns;
+	end
+	
+	assign out_ps=ps;
+	assign out_ns=ns;
+endmodule
