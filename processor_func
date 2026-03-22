@@ -1,0 +1,95 @@
+module processor_func(Data,Rst,w,Clk,F,Rx,Ry,Done,Buswires,R0,R1,R2,R3,A,G);
+input 		[7:0]Data;
+input 		Rst,w,Clk;
+input			[1:0]F,Rx,Ry;
+output reg	[7:0]Buswires;
+output reg	Done;
+reg 			[3:0]Rin,Rout;
+reg			[7:0]Sum;
+wire			Clear,FRin;
+reg			Addsub,Extern,Ain,Gin,Gout;
+wire			[1:0]Count,I;
+wire			[3:0]X,Y;
+output wire	[7:0]R0,R1,R2,R3,A,G;
+wire 			[5:0]Func,Funcreg,Sel;
+
+	assign Clear=Rst|Done|(~w&~Count[1]&~Count[0]);
+	upcount counter(.Clear(Clear),.Clk(Clk),.Q(Count));
+
+	assign Func={F,Rx,Ry};
+	assign FRin=w&~Count[1]&~Count[0];
+	regn functionreg(.R(Func),.Rin(FRin),.Clk(Clk),.Q(Funcreg));
+		defparam functionreg.n=6;
+		
+	assign I=Funcreg[5:4];		//load,move,add,sub
+	dec2to4 decX(.W(Funcreg[3:2]),.En(1'b1),.Y(X));		//the last R
+	dec2to4 decY(.W(Funcreg[1:0]),.En(1'b1),.Y(Y));		
+	
+	always@(*)begin
+		Extern=1'b0;Done=1'b0;Ain=1'b0;Gin=1'b0;Gout=1'b0;
+		Addsub=1'b0;Rin=4'b0;Rout=4'b0;
+		case(Count)
+			2'b00:;
+			2'b01:begin
+					case(I)
+						2'b00:begin //LOAD
+								Extern=1'b1;Rin=X;Done=1'b1;
+								end
+						2'b01:begin //MOVE
+								Rout=Y;Rin=X;Done=1'b1;
+								end
+						default:begin//ADD,SUB
+								Rout=X;Ain=1'b1;
+								end
+					endcase
+					end
+			2'b10:begin
+					case(I)
+						2'b10:begin	//ADD
+								Rout=Y;Gin=1'b1;
+								end
+						2'b11:begin	//SUB
+								Rout=Y;Gin=1'b1;Addsub=1'b1;
+								end
+						default:;
+					endcase
+					end
+			2'b11:begin
+					case(I)
+						2'b10,2'b11:begin
+										Rin=X;Gout=1'b1;Done=1'b1;
+										end
+						default:;
+					endcase
+					end
+			default:;
+		endcase
+	end
+	
+	regn reg_0(.R(Buswires),.Rin(Rin[0]),.Clk(Clk),.Q(R0));
+	regn reg_1(.R(Buswires),.Rin(Rin[1]),.Clk(Clk),.Q(R1));
+	regn reg_2(.R(Buswires),.Rin(Rin[2]),.Clk(Clk),.Q(R2));
+	regn reg_3(.R(Buswires),.Rin(Rin[3]),.Clk(Clk),.Q(R3));
+	regn reg_A(.R(Buswires),.Rin(Ain),.Clk(Clk),.Q(A));
+	
+	always@(*)begin
+		if(!Addsub)
+			Sum=A+Buswires;
+		else
+			Sum=A-Buswires;	
+	end
+	
+	regn reg_G(.R(Sum),.Rin(Gin),.Clk(Clk),.Q(G));
+	assign Sel={Rout,Gout,Extern};
+	
+	always@(*)begin
+		case(Sel)  //take care about Rout order
+			6'b000100:Buswires=R0;
+			6'b001000:Buswires=R1;
+			6'b010000:Buswires=R2;
+			6'b100000:Buswires=R3;
+			6'b000010:Buswires=G;
+			default:	Buswires=Data;
+		endcase
+	end
+endmodule
