@@ -12,3 +12,9 @@ https://zh.wikipedia.org/zh-tw/%E5%BA%B7%E5%A8%81%E7%94%9F%E5%91%BD%E6%B8%B8%E6%
 此題取自為HDLBITS，個人覺得相當有趣，在wiki介紹中有影片，像有生命的有機體活動。  
 當時在處理二維陣列較為生疏，故使用一維陣列處理。    
 去TSRI上完課後，對二維陣列的處理較為成熟，使用二維陣列處理會更加簡單，有時間再寫一次。  
+
+
+3.simple processor
+參考Fundamentals of Digital Logic with Verilog Design-Third edition此書 Ch7 Digital System Design
+利用簡單運算及計數器實現swap、processor電路
+再以有限狀態機(FSM)實現
